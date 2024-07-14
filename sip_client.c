@@ -345,6 +345,7 @@ void request_dial(const char* call_no, const char* caller_display){
     //send responce on cl_state
     void tx(){
         TXTEXT
+        printf("TX\n");
         char temp[50];
         int ssrc;
         switch (cl_state) {
@@ -373,7 +374,7 @@ void request_dial(const char* call_no, const char* caller_display){
         case SS_REGISTERED:
             printf("TX SS_REGISTERED\n");
 //            ph_state=PS_REGISTERED;
-             registered=1;
+//             registered=1;
             //options
 //            if(p_method==MD_OPTIONS){
 //                send_sip_options();// should be 200
@@ -486,6 +487,7 @@ void request_dial(const char* call_no, const char* caller_display){
         // Parce received packet
         if (!parse(b)) {
             printf("!!!!!!!!!!!!!!!!! Parsing the packet failed !!!!!!!!!!!!!!!!!!!!!!!!!!!");
+            cl_state=SS_ERROR;
             return;
         }
         
@@ -511,6 +513,7 @@ void request_dial(const char* call_no, const char* caller_display){
             strncat(c_nonce,p_nonce,PARSE_MAX);
         } else if ((reply == ST_RINGING_180)){
             cl_state=SS_RINGTONE;
+            ph_state=PS_RINGTONE;
             printf("RX RINGTONE\n");    
         } else if ((reply == ST_UNKNOWN) && ((p_method == MD_NOTIFY) || (p_method == MD_BYE) || (p_method == MD_INFO) || (p_method == MD_INVITE) || (p_method == MD_CANCEL) || (p_method == MD_OPTIONS) ) ) {
             printf("RX MD_Various :)\n");
@@ -618,7 +621,10 @@ void request_dial(const char* call_no, const char* caller_display){
                 registered=1;
             } else {
                 cl_state = SS_ERROR;
-                printf("RX SS_ERROR \n");
+                printf("RX SS_ERROR reply to auth not OK_200 \n");
+                registered=0;
+                ph_state = PS_NOT_REGISTERED;
+
             }
             break;
         case SS_REGISTERED:
@@ -655,12 +661,18 @@ void request_dial(const char* call_no, const char* caller_display){
                 c_sip_sequence_number++;
             } else if ((reply == ST_OK_200) || (reply == ST_SESSION_PROGRESS_183)) {
                 printf("ST_OK_200 / ST_SESSION_PROGRESS_183\n");
-                cl_state = SS_RINGING;
+/*                cl_state = SS_RINGING;
                 ph_state = PS_RINGING;
                 sprintf(c_nonce,"");
-//                sprintf(c_realm,"");
                 sprintf(c_response,"");
                 printf( "Start RINGing...");
+*/
+                cl_state = SS_RINGTONE;
+                ph_state = PS_RINGTONE;
+                sprintf(c_nonce,"");
+                sprintf(c_response,"");
+                printf( "RINGTONE");
+
             } else if (reply != ST_TRYING_100) {
                 cl_state = SS_ERROR;
             }
@@ -757,6 +769,11 @@ void request_dial(const char* call_no, const char* caller_display){
                 ph_state = PS_IDLE;
                 enablertp=0;
 //                ss_state = 
+            } else if (reply == ST_OK_200) {
+               c_sip_sequence_number++;
+                
+                send_sip_ack();
+
             } else if ((p_method == MD_INFO) && (p_content_type == CT_APPLICATION_DTMF_RELAY)) {
                 printf("MD_INFO / CT_APPLICATION_DTMF_RELAY\n");
             }
@@ -793,26 +810,42 @@ void request_dial(const char* call_no, const char* caller_display){
         printf("\nSend Register /n");
     
         char request_uri[100];
+        char buffer[2048];
+        char to_uri[100];
+//        sprintf(to_uri,"%s@%s",c_login,c_realm);
+//        sprintf(to_uri,"%s@%s",c_login,c_my_ip);
+
+        char from_uri[100];
+//        sprintf(from_uri,"%s@%s",c_login,c_realm);
+//        sprintf(from_uri,"%s@%s",c_login,c_my_ip);
+
+
         //regsiter with realm
-        sprintf(request_uri,"sip:%s", c_realm);        
+//        sprintf(request_uri,"sip:%s", c_realm);        
         //regsiter with IP
 //        sprintf(request_uri,"sip:%s", c_server_ip);        
+
+
+        if(regwithrealm[server]==1){
+            printf("--?  Reg with realm\n");
+            sprintf(to_uri,"%s@%s",c_login,c_realm);
+            sprintf(from_uri,"%s@%s",c_login,c_realm);            
+            sprintf(request_uri,"sip:%s", c_realm);
+        }else{
+            printf("-->  Reg with ip\n");
+            sprintf(to_uri,"%s@%s",c_login,c_my_ip);
+            sprintf(from_uri,"%s@%s",c_login,c_my_ip);            
+            sprintf(request_uri,"sip:%s", c_server_ip);
+        }   
+
 
         if (auth){
             compute_auth_response("REGISTER", request_uri);
         }
         printf("Send SIP Register\n");
-        char buffer[2048];
         
         //sprintf(request_uri,"sip:%s", c_realm);
         
-        char to_uri[100];
-        sprintf(to_uri,"%s@%s",c_login,c_realm);
-//        sprintf(to_uri,"%s@%s",c_login,c_my_ip);
-
-        char from_uri[100];
-        sprintf(from_uri,"%s@%s",c_login,c_realm);
-//        sprintf(from_uri,"%s@%s",c_login,c_my_ip);
 
         sprintf(c_to_tag,""); //remove to tag ?
         
@@ -886,13 +919,13 @@ void request_dial(const char* call_no, const char* caller_display){
         char from_uri[100];
         char request_uri[100];
         
-        if(regwithrealm[server]){
-            printf("  reg with realm\n");
+        if(regwithrealm[server]==1){
+            printf("--?  Reg with realm\n");
             sprintf(to_uri,"%s@%s",c_call,c_realm); //realm
             sprintf(from_uri,"%s@%s",c_login,c_realm); //realm
             sprintf(request_uri,"sip:%s",to_uri); //realm
         }else{    
-            printf("Reg with ip\n");
+            printf("-->  Reg with ip\n");
             sprintf(to_uri,"%s@%s",c_call,c_server_ip);//ip
             sprintf(from_uri,"%s@%s",c_login,c_server_ip);//ip
             sprintf(request_uri,"sip:%s@%s",c_call,c_server_ip); //ip
@@ -1042,8 +1075,10 @@ void request_dial(const char* call_no, const char* caller_display){
             printf("ACK NOT Call Start\n");
             sprintf(to_uri,"%s@%s",c_call,c_server_ip);
             sprintf(from_uri,"%s@%s",c_login,c_server_ip);
-            sprintf(request,"sip:%s@%s:%i",c_call,c_server_ip,sip_local_port); // should this be server port ???
-            sip_header("ACK", request, from_uri,to_uri,c_tag, c_to_tag, buffer);
+            sprintf(c_to_contact,"%s",p_contact);
+//            sprintf(request,"sip:%s@%s:%i",c_call,c_server_ip,sip_local_port); // should this be server port ???
+//            sip_header("ACK", request, from_uri,to_uri,c_tag, c_to_tag, buffer);
+            sip_header("ACK", c_to_contact, from_uri, c_to_uri,c_tag, c_to_tag, buffer);
             sprintf(buffer,"%sContent-Length: 0\r\n",buffer);
             sprintf(buffer,"%s\r\n",buffer);
         }

@@ -13,13 +13,14 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include "pico/stdlib.h" 
+#include "pico/stdlib.h"
 #include "pico/cyw43_arch.h"
 #include "pico/multicore.h"
 
 
 #include "lwip/pbuf.h"
 #include "lwip/udp.h"
+#include "lwip/dns.h"
 
 #include "ff.h"
 #include "f_util.h"
@@ -107,6 +108,8 @@ ip_addr_t my_addr;
 
 int rdp_target_port=5062; //backstop - should be set from parse.
 
+volatile uint8_t got_server_ip=0;
+
 //int GotSipData=0;
 int GotRtpData=0;
 
@@ -117,7 +120,7 @@ volatile uint8_t sendingudp=0;
 
 uint8_t enablertp=0;
 
-uint8_t s_buffer[9][2048]; //sip buffer - 10 packets 
+uint8_t s_buffer[9][SIP_BUF_MAX]; //sip buffer - 10 packets 
 uint16_t b_in=0;  //buffer pointers
 uint16_t b_out=0; //buffer pointers
 uint8_t r_buffer[1024]; //rtp UDP buffer
@@ -126,6 +129,9 @@ extern uint16_t fringpos; //ringer pointer
 //display vars
 enum PhoneState disp_state;
 //volatile uint8_t Core1Display=0; //when ready hand over display to core1
+
+int32_t rssi;
+int32_t last_rssi;
 
 void halt(void){
     //dfa ...
@@ -171,7 +177,7 @@ static void udpReceiveRtpCallback(void *_arg, struct udp_pcb *_rtp_pcb,struct pb
 
 void init_udp(){
     err_t er;
-    ipaddr_aton(server_addr[server], &sip_target_addr);
+//    ipaddr_aton(server_addr[server], &sip_target_addr);
 
     //sip 
     sip_pcb = udp_new();
@@ -198,7 +204,7 @@ void send_udp_sip(char* msg,int msglen){
     //length WITHOUT trailing 0
     struct pbuf *p = pbuf_alloc(PBUF_TRANSPORT, msglen, PBUF_RAM);
     char *req = (char *)p->payload;
-    memset(req, 0, msglen+1);
+    memset(req, 0, msglen);
     int a;
     for(a=0;a<msglen;a++) req[a]=msg[a];
     req[a]=0;
@@ -265,18 +271,9 @@ void send_rdp_udp_blocking(char* msg,int msglen,int debug){
     }    
 }
 
-//setup gpio port for control
-void gpio_conf(void){
-    gpio_set_dir(RING,GPIO_IN);
-    gpio_pull_down(RING);
-    gpio_set_dir(DIAL,GPIO_IN);
-    gpio_pull_down(DIAL);
-    gpio_set_dir(ANSWER,GPIO_IN);
-    gpio_pull_down(ANSWER);
-    gpio_set_dir(HANGUP,GPIO_IN);
-    gpio_pull_down(HANGUP);
-    
-}
+
+
+
 
 void set_host_name(const char*hostname)
 {
@@ -285,6 +282,37 @@ void set_host_name(const char*hostname)
     netif_set_hostname(n, hostname);
     netif_set_up(n);
     cyw43_arch_lwip_end();
+}
+
+void DnsFound(const char *name, const struct ip4_addr * ip_addr , void *arg) 
+{       
+   got_server_ip=1;
+}
+
+//   dns_gethostbyname(hostname,ip,DnsFound,LWIP_DNS_ADDRTYPE_IPV4);
+
+void GetServerIP(void){
+
+    err_t dnsERR;
+    printf("Getting DNS \n");
+    struct ip4_addr ip_addr;
+    if (dnsERR=dns_gethostbyname(server_addr[server], &ip_addr, DnsFound, NULL)!=ERR_OK){
+        printf("Waiting for DNS");
+        while(got_server_ip==0){
+           sleep_us(200);
+           printf(".");
+        }
+        printf("\n");
+        dnsERR=dns_gethostbyname(server_addr[server], &ip_addr, DnsFound, NULL);
+    }
+    if(dnsERR!=ERR_OK){
+        printf("DNS FAILED TO Resolve IP address of %s\n",server_addr[server]); 
+    }else{
+        printf("Setting Server Address %s to: %s\n",server_addr[server],ipaddr_ntoa(&ip_addr));
+        sprintf(server_addr[server],"%s",ipaddr_ntoa(&ip_addr));
+    }
+    
+
 }
 
 
@@ -301,7 +329,6 @@ void init_network(){
     printf("Set hostname to %s\n",hostname);
     
     set_host_name(hostname);
-    //set_host_name("PiTeleCow");
 
     if(maxwifi==0){
         printf("No wifi details maxwifi=0\n");
@@ -315,7 +342,13 @@ void init_network(){
     
     char statline[30];
     while(x){
-        x=cyw43_arch_wifi_connect_timeout_ms(wifi_ssid[usedwifi], wifi_pass[usedwifi], CYW43_AUTH_WPA2_AES_PSK, 5000);
+        if(strlen(wifi_pass[usedwifi])<3){
+          printf("Open WiFI/n");
+          x=cyw43_arch_wifi_connect_timeout_ms(wifi_ssid[usedwifi], wifi_pass[usedwifi],CYW43_AUTH_OPEN, 7000);
+        }else{
+        //CYW43_AUTH_WPA2_AES_PSK
+          x=cyw43_arch_wifi_connect_timeout_ms(wifi_ssid[usedwifi], wifi_pass[usedwifi],CYW43_AUTH_WPA2_MIXED_PSK , 7000);
+        }
         if (x){
             printf("trying. SSID[%i] %s \n",usedwifi,wifi_ssid[usedwifi]);
             snprintf(statline,13,"W:%s",wifi_ssid[usedwifi]);
@@ -347,9 +380,32 @@ void init_network(){
     }
 
     printf("\nWiFi Ready...\n");
+
+    //start UDP interfaces
     init_udp();
+    
+    //get ip for server from DNS
+    GetServerIP();    
+    //use as target address
+    ipaddr_aton(server_addr[server], &sip_target_addr);
+
 }
 
+
+//setup gpio port for control
+void gpio_conf(void){
+    gpio_set_dir(RING,GPIO_IN);
+    gpio_pull_down(RING);
+    gpio_set_dir(DIAL,GPIO_IN);
+    gpio_pull_down(DIAL);
+    gpio_set_dir(ANSWER,GPIO_IN);
+    gpio_pull_down(ANSWER);
+    gpio_set_dir(HANGUP,GPIO_IN);
+    gpio_pull_down(HANGUP);
+    
+}
+
+//strip name for display as contact
 void contactfromfrom(char * from, char *r){
     //find "'s 
     uint8_t ic1=0x0ff,ic2=0x0ff, nc1=0x0ff, nc2=0x0ff;
@@ -391,6 +447,23 @@ void StatusClear(void){
     drawStatus("               ",STATUSLINE1);   //fill rectangle ????????
     drawStatus("               ",STATUSLINE2);
     drawStatus("               ",STATUSLINE3);
+}
+
+void Disp_SigStrength(int32_t rssi){
+    if(rssi!=last_rssi){
+        int x1=0;
+        if(rssi<0){
+            x1=0-rssi; //30-90 ??
+            x1=128-x1;
+        }
+
+        int x;
+        for(x=128;x>0;x--){
+              setpixel(x,0,x1>x);
+        }    
+        SSD1306_sendBuffer();        
+        last_rssi=rssi;
+    }
 }
 
 
@@ -464,9 +537,12 @@ void display_ph_status(){
             printf("################################################ ERROR\n");
             drawStatusCentered("ERROR",STATUSLINE1,4);
         }
+     
         
 
     }//if
+    
+    Disp_SigStrength(rssi);
 }
 
 // ******************************* CORE 1 *************************************
@@ -508,10 +584,17 @@ void sec1(){
           doring();
         }
 //        printf("SIPTIMER:%i\n",ReRegistrationTimer);
+
+//   int x1;
+  
+// get rssid signal strength    
+    cyw43_wifi_get_rssi(&cyw43_state, &rssi);
 }
+
 
 void sec10(){
     //every 10 seconds
+
 }
 
 
@@ -649,6 +732,7 @@ int main() {
     cl_state=SS_REGISTER_UNAUTH;
     ReRegistrationTimer=SIP_REREGISTRATIONDELAY;
     tx();
+
 
     while(1){
 

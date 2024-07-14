@@ -6,6 +6,8 @@
 #define TRANSPORT_UPPER  "UDP"
 #define SOCKET_RX_TIMEOUT_MSEC 200
 
+#define SIP_BUF_MAX 2048
+
 //IO 
 #define RING 10
 #define DIAL 11

@@ -373,34 +373,11 @@ void DispConn(char * text){
     }
 }
 
+void setpixel(uint16_t x,uint16_t y,uint8_t onoff){
+   if(onoff){
+       SSD1306_setPixel(x, y, SSD1306_ADD);
+   }else{
+       SSD1306_setPixel(x, y, SSD1306_SUBTRACT);
+   }
 
-
-
-/*
-void SSD1306_background_image(unsigned char *bitmap){ 
-//this is all sorts of wrong because I reused code from anothe project
-//and its all arse about face...
-   uint8_t x;
-   uint8_t y;
-   uint8_t d;
-   uint8_t v;
-   uint8_t b;
-   printf("Width:%i Height:%i\n",SSD1306_width,SSD1306_height);
-   for(y=0;y<SSD1306_width;y++){
-     x=0;
-     for(d=0;d<SSD1306_height/8;d++){
-        v=bitmap[d+y*SSD1306_height/8];
-        for(b=0;b<8;b++){
-            if(!(v & 1<<b)){
-              //buffer[x]=fg;
-              SSD1306_setPixel(y, SSD1306_height-x, SSD1306_ADD);
-            }else{
-//              buffer[x]=bg;
-            }
-            x++;
-        }
-     }
-  }
 }
-*/
-

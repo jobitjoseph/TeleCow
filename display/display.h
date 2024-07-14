@@ -5,7 +5,7 @@
 #define STATUSLINE3 52
 #define STATUSLINE2 41
 #define STATUSLINE1 30
-#define STATUSLINEP 44
+#define STATUSLINEP 43
 //display width in chars (allowing for border)
 #define DISPLAYWIDTH 14
 
@@ -71,70 +71,32 @@ enum SSD1306_Rotation{
 
 
 
-//        uint16_t address;
-//        Size size;
+void SSD1306_cmd(unsigned char command);
 
-//        uint8_t width, height;
+void SSD1306_init(uint16_t SSD1306_Address, enum SSD1306_Size size);
 
-//        bool inverted;
+void SSD1306_setPixel(int16_t x, int16_t y, enum SSD1306_WriteMode mode);
 
-        /// \brief Sends single 8bit command to ssd1306 controller
-        /// \param command - byte to be sent to controller
-        void SSD1306_cmd(unsigned char command);
+void SSD1306_sendBuffer();
 
-        /// \brief SSD1306 constructor initialized display and sets all required registers for operation
-        /// \param i2CInst - i2c instance. Either i2c0 or i2c1
-        /// \param Address - display i2c address. usually for 128x32 0x3C and for 128x64 0x3D
-        /// \param size - display size. Acceptable values W128xH32 or W128xH64
-        void SSD1306_init(uint16_t SSD1306_Address, enum SSD1306_Size size);
+void SSD1306_addBitmapImage(int16_t anchorX, int16_t anchorY, uint8_t image_width, uint8_t image_height, uint8_t *image,
+                    enum SSD1306_WriteMode mode);
 
-        /// \brief Set pixel operates frame buffer
-        /// x is the x position of pixel you want to change. values 0 - 127
-        /// y is the y position of pixel you want to change. values 0 - 31 or 0 - 63
-        /// \param x - position of pixel you want to change. values 0 - 127
-        /// \param y - position of pixel you want to change. values 0 - 31 or 0 - 63
-        /// \param mode - mode describes setting behavior. See WriteMode doc for more information
-        void SSD1306_setPixel(int16_t x, int16_t y, enum SSD1306_WriteMode mode);
+void SSD1306_setBuffer(unsigned char *buffer);
 
-        /// \brief Sends frame buffer to display so that it updated
-        void SSD1306_sendBuffer();
-
-        /// \brief Adds bitmap image to frame buffer
-        /// \param anchorX - sets start point of where to put the image on the screen
-        /// \param anchorY - sets start point of where to put the image on the screen
-        /// \param image_width - width of the image in pixels
-        /// \param image_height - height of the image in pixels
-        /// \param image - pointer to uint8_t (unsigned char) array containing image data
-        /// \param mode - mode describes setting behavior. See WriteMode doc for more information
-        void SSD1306_addBitmapImage(int16_t anchorX, int16_t anchorY, uint8_t image_width, uint8_t image_height, uint8_t *image,
-                            enum SSD1306_WriteMode mode);
-
-        /// \brief Manually set frame buffer. make sure it's correct size of 1024 bytes
-        /// \param buffer - pointer to a new buffer
-        void SSD1306_setBuffer(unsigned char *buffer);
-
-        /// \brief Flips the display
-        /// \param orientation - 0 for not flipped, 1 for flipped display
-        void SSD1306_setOrientation(bool orientation);
+void SSD1306_setOrientation(bool orientation);
 
 
-        /// \brief Clears frame buffer aka set all bytes to 0
-        void SSD1306_clear();
+void SSD1306_clear();
 
-        /// \brief Inverts screen on hardware level. Way more efficient than setting buffer to all ones and then using WriteMode subtract.
-        void SSD1306_invertDisplay();
+void SSD1306_invertDisplay();
 
-        /// \brief Sets display contrast according to ssd1306 documentation
-        /// \param contrast - accepted values of 0 to 255 to set the contrast
-        void SSD1306_setContrast(unsigned char contrast);
+void SSD1306_setContrast(unsigned char contrast);
 
-        /// \brief Turns display off
-        void SSD1306_turnOff();
+void SSD1306_turnOff();
 
-        /// \brief Turns display on
-        void SSD1306_turnOn();
+void SSD1306_turnOn();
     
-
 void drawText( const char *text, uint8_t anchor_x,uint8_t anchor_y);
 
 void SSD1306_drawText(const unsigned char *font, const char *text, uint8_t anchor_x,
@@ -150,5 +112,8 @@ void drawStatus( const char *text,uint8_t anchor_y);
 void SSD1306_fillRect( uint8_t x_start, uint8_t y_start, uint8_t x_end, uint8_t y_end,enum SSD1306_WriteMode mode);
 
 void DispConn(char * text);
+
 void drawStatusCentered(char * text,uint8_t anchor_y, uint8_t border);
+
+void setpixel(uint16_t x,uint16_t y,uint8_t onoff);
 

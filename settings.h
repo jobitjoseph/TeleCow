@@ -15,6 +15,8 @@
 #define LOCAL_SIP_PORT 9999
 #define LOCAL_RTP_PORT 17080
 #define SERVER_REALM "Asterisk"
+
+//debug default
 #define DEBUG 1
 
 //hostname

@@ -112,6 +112,20 @@ void stringptr(char * out, char * in,char * end){
 
 bool parse(int b){
     printf("Parse\n");
+
+    int len=strlen(s_buffer[b]);
+    
+    if(len>SIP_BUF_MAX){
+       printf("No Termination to buffer\n");
+       return false;
+    }
+    
+    if((s_buffer[b][len-1]!=0x0d) && (s_buffer[b][len-1]!=0x0a)){
+       printf("Buffer doesn't end with CR or LF\n");
+       return false;
+
+    } 
+    
     bool result = parse_header(b);
     if (!result)
     {
